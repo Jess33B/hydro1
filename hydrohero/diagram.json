@@ -3,16 +3,58 @@
   "author": "Anonymous maker",
   "editor": "wokwi",
   "parts": [
-    { "type": "board-esp32-devkit-c-v4", "id": "esp", "top": -19.2, "left": -62.36, "attrs": {} },
-    { "type": "wokwi-dht22", "id": "dht1", "top": -47.7, "left": -139.8, "attrs": {} }
+    { "type": "board-esp32-devkit-v1", "id": "esp", "top": 0, "left": 0, "attrs": {} },
+    { 
+      "type": "wokwi-water-flow-sensor", 
+      "id": "flow1", 
+      "top": 100, 
+      "left": 100,
+      "attrs": {
+        "pulsesPerLiter": "450"
+      } 
+    },
+    {
+      "type": "wokwi-hx711",
+      "id": "hx711",
+      "top": 200,
+      "left": 100,
+      "attrs": {
+        "dout": "16",
+        "sck": "4",
+        "sensitivity": "100"
+      }
+    },
+    {
+      "type": "wokwi-load-cell",
+      "id": "load1",
+      "top": 300,
+      "left": 100,
+      "attrs": {
+        "weight": "0"
+      }
+    }
   ],
   "connections": [
-    [ "esp:TX", "$serialMonitor:RX", "", [] ],
-    [ "esp:RX", "$serialMonitor:TX", "", [] ],
-    [ "esp:3V3", "dht1:VCC", "green", [ "h-57.45", "v153.6" ] ],
-    [ "esp:GND.2", "esp:GND.1", "black", [ "v124.8", "h-96" ] ],
-    [ "esp:GND.1", "dht1:GND", "black", [ "h-28.65", "v28.8" ] ],
-    [ "esp:15", "dht1:SDA", "green", [ "v0" ] ]
+  
+    ["esp:3V3", "flow1:VCC", "red"],
+    ["esp:GND", "flow1:GND", "black"],
+    ["esp:34", "flow1:SIG", "green"],
+    
+    
+    ["esp:3V3", "hx711:VCC", "red"],
+    ["esp:GND", "hx711:GND", "black"],
+    ["esp:16", "hx711:DOUT", "blue"],
+    ["esp:4", "hx711:SCK", "yellow"],
+    
+
+    ["hx711:DT", "load1:DT", "white"],
+    ["hx711:SCK", "load1:SCK", "white"],
+    ["hx711:VCC", "load1:VCC", "red"],
+    ["hx711:GND", "load1:GND", "black"],
+    
+   
+    ["esp:TX", "$serialMonitor:RX", ""],
+    ["esp:RX", "$serialMonitor:TX", ""]
   ],
   "dependencies": {}
 }
