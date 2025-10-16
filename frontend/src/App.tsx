@@ -1,10 +1,19 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid, Legend } from 'recharts';
 import { connectToHydrationBottle, disconnectFromHydrationBottle, isBleSupported, startNotifications } from './ble';
+import Header from './components/layout/Header';
+import Navigation from './components/layout/Navigation';
+import Dashboard from './pages/Dashboard';
+import History from './pages/History';
+import Profile from './pages/Profile';
+import Settings from './pages/Settings';
+import Devices from './pages/Devices';
+import './styles.css';
 
-type ActivityLevel = 'low' | 'moderate' | 'high';
-
-type HistoryPoint = { timestamp: number; intakeMl: number };
+export type Page = 'dashboard' | 'history' | 'profile' | 'settings' | 'devices';
+export type ActivityLevel = 'low' | 'moderate' | 'high';
+export type HistoryPoint = { timestamp: number; intakeMl: number };
 
 function formatTime(ts: number) {
   const d = new Date(ts);
@@ -17,17 +26,18 @@ function computeDailyGoalMl(weightKg: number): number {
 }
 
 export const App: React.FC = () => {
+  const [currentPage, setCurrentPage] = useState<Page>('dashboard');
+  const [darkMode, setDarkMode] = useState<boolean>(true);
+  
+  // State from original app
   const [weightKg, setWeightKg] = useState<number>(70);
   const [age, setAge] = useState<number | ''>('');
   const [activity, setActivity] = useState<ActivityLevel>('moderate');
-  const [darkMode, setDarkMode] = useState<boolean>(false);
-
   const [intakeMl, setIntakeMl] = useState<number>(0);
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [connected, setConnected] = useState<boolean>(false);
   const [lastSynced, setLastSynced] = useState<number | null>(null);
   const [statusMsg, setStatusMsg] = useState<string>('Disconnected');
-
   const [mockMode, setMockMode] = useState<boolean>(false);
   const mockTimerRef = useRef<number | null>(null);
 
@@ -79,7 +89,6 @@ export const App: React.FC = () => {
       setConnected(true);
       setStatusMsg('Connected. Subscribing to notifications...');
       await startNotifications(characteristic, (value) => {
-        // Value is a DataView containing little-endian uint32 cumulative mL
         const ml = value.getUint32(0, true);
         setIntakeMl(ml);
         setHistory(h => [...h, { timestamp: Date.now(), intakeMl: ml }]);
@@ -117,113 +126,68 @@ export const App: React.FC = () => {
     return Array.from(byDay.entries()).map(([k, v]) => ({ day: k, ml: v }));
   }, [history]);
 
+  const pages = {
+    dashboard: (
+      <Dashboard 
+        intakeMl={intakeMl}
+        dailyGoalMl={dailyGoalMl}
+        predictionText={predictionText}
+        history={history}
+        dailyBuckets={dailyBuckets}
+        connected={connected}
+        statusMsg={statusMsg}
+        lastSynced={lastSynced}
+        mockMode={mockMode}
+        onConnect={handleConnect}
+        onDisconnect={handleDisconnect}
+        onToggleMock={() => setMockMode(!mockMode)}
+      />
+    ),
+    history: <History history={history} dailyBuckets={dailyBuckets} />,
+    profile: (
+      <Profile 
+        weightKg={weightKg}
+        age={age}
+        activity={activity}
+        darkMode={darkMode}
+        onWeightChange={setWeightKg}
+        onAgeChange={setAge}
+        onActivityChange={setActivity}
+        onThemeChange={setDarkMode}
+      />
+    ),
+    settings: <Settings />,
+    devices: (
+      <Devices 
+        connected={connected}
+        statusMsg={statusMsg}
+        lastSynced={lastSynced}
+        mockMode={mockMode}
+        onConnect={handleConnect}
+        onDisconnect={handleDisconnect}
+        onToggleMock={() => setMockMode(!mockMode)}
+      />
+    ),
+  };
+
   return (
     <div className="app">
-      <header className="header">
-        <h1>Hydration Hero</h1>
-        <div className="spacer" />
-        <button className="btn" onClick={() => setDarkMode(v => !v)}>{darkMode ? 'Light' : 'Dark'} Mode</button>
-      </header>
-
-      <section className="card">
-        <h2>User Profile</h2>
-        <div className="form-grid">
-          <label>
-            Weight (kg)
-            <input type="number" min={1} value={weightKg}
-                   onChange={e => setWeightKg(parseFloat(e.target.value) || 0)} />
-          </label>
-          <label>
-            Age (optional)
-            <input type="number" min={0} value={age}
-                   onChange={e => setAge(e.target.value === '' ? '' : parseInt(e.target.value))} />
-          </label>
-          <label>
-            Activity
-            <select value={activity} onChange={e => setActivity(e.target.value as ActivityLevel)}>
-              <option value="low">Low</option>
-              <option value="moderate">Moderate</option>
-              <option value="high">High</option>
-            </select>
-          </label>
-        </div>
-        <div className="goal">Daily goal: <strong>{dailyGoalMl} ml</strong></div>
-      </section>
-
-      <section className="grid-2">
-        <div className="card">
-          <h2>Dashboard</h2>
-          <div className="metrics">
-            <div>
-              <div className="metric-label">Total Intake</div>
-              <div className="metric-value">{intakeMl} ml</div>
-            </div>
-            <div>
-              <div className="metric-label">Goal</div>
-              <div className="metric-value">{dailyGoalMl} ml</div>
-            </div>
-          </div>
-          <div className="progress">
-            <div className="bar">
-              <div className="fill" style={{ width: `${Math.min(100, dailyGoalMl ? Math.round((intakeMl / dailyGoalMl) * 100) : 0)}%` }} />
-            </div>
-            <div className="progress-label">{dailyGoalMl ? Math.min(100, Math.round((intakeMl / dailyGoalMl) * 100)) : 0}%</div>
-          </div>
-          <div className="prediction">{predictionText}</div>
-        </div>
-
-        <div className="card">
-          <h2>Device</h2>
-          <div className="device-row">
-            <button className="btn" onClick={connected ? handleDisconnect : handleConnect}>
-              {connected ? 'Disconnect Bottle' : 'Connect Bottle'}
-            </button>
-            <label className="switch">
-              <input type="checkbox" checked={mockMode} onChange={e => setMockMode(e.target.checked)} />
-              <span>Mock mode</span>
-            </label>
-          </div>
-          <div className={`status ${connected ? 'ok' : 'warn'}`}>
-            <strong>Status:</strong> {statusMsg}
-          </div>
-          <div className="status"><strong>Last synced:</strong> {lastSynced ? formatTime(lastSynced) : '—'}</div>
-        </div>
-      </section>
-
-      <section className="card">
-        <h2>Real-time Intake</h2>
-        <div className="chart">
-          <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={history} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="timestamp" tickFormatter={formatTime} interval="preserveStartEnd" />
-              <YAxis dataKey="intakeMl" />
-              <Tooltip labelFormatter={(l: any) => formatTime(l as number)} formatter={(v: any) => [`${v} ml`, 'Intake']} />
-              <Legend />
-              <Line isAnimationActive={false} type="monotone" dataKey="intakeMl" stroke="#4f46e5" dot={false} name="Intake (ml)" />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </section>
-
-      <section className="card">
-        <h2>Daily Trends</h2>
-        <div className="chart">
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={dailyBuckets} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="day" />
-              <YAxis />
-              <Tooltip formatter={(v: any) => [`${v} ml`, 'Total']} />
-              <Bar dataKey="ml" fill="#22c55e" name="Daily total (ml)" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </section>
-
-      <footer className="footer">Web Bluetooth requires Chrome/Edge on desktop. Use HTTPS or localhost.</footer>
+      <div className="app-background"></div>
+      <Header />
+      <main className="main-content">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentPage}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+          >
+            {pages[currentPage]}
+          </motion.div>
+        </AnimatePresence>
+      </main>
+      <Navigation currentPage={currentPage} onPageChange={setCurrentPage} />
     </div>
   );
 };
-
-
