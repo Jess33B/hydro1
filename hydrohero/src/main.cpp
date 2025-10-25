@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
-#include "HX711.h"
+#include <HX711.h>
 
 #define LOADCELL_DOUT 25
 #define LOADCELL_SCK 26

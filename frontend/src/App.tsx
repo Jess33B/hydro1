@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid, Legend } from 'recharts';
 import { connectToHydrationBottle, disconnectFromHydrationBottle, isBleSupported, startNotifications } from './ble';
+import { firebaseService } from './services/firebaseService';
 import Header from './components/layout/Header';
 import Navigation from './components/layout/Navigation';
 import Dashboard from './pages/Dashboard';
@@ -14,11 +14,6 @@ import './styles.css';
 export type Page = 'dashboard' | 'history' | 'profile' | 'settings' | 'devices';
 export type ActivityLevel = 'low' | 'moderate' | 'high';
 export type HistoryPoint = { timestamp: number; intakeMl: number };
-
-function formatTime(ts: number) {
-  const d = new Date(ts);
-  return d.toLocaleTimeString();
-}
 
 function computeDailyGoalMl(weightKg: number): number {
   if (!weightKg || weightKg <= 0) return 0;
@@ -39,7 +34,9 @@ export const App: React.FC = () => {
   const [lastSynced, setLastSynced] = useState<number | null>(null);
   const [statusMsg, setStatusMsg] = useState<string>('Disconnected');
   const [mockMode, setMockMode] = useState<boolean>(false);
+  const [firebaseMode, setFirebaseMode] = useState<boolean>(false);
   const mockTimerRef = useRef<number | null>(null);
+  const firebaseTimerRef = useRef<number | null>(null);
 
   const dailyGoalMl = useMemo(() => computeDailyGoalMl(weightKg), [weightKg]);
   const deltaToGoal = useMemo(() => intakeMl - dailyGoalMl, [intakeMl, dailyGoalMl]);
@@ -77,6 +74,57 @@ export const App: React.FC = () => {
       mockTimerRef.current = null;
     };
   }, [mockMode]);
+
+  // Firebase mode for real hardware data
+  useEffect(() => {
+    if (!firebaseMode) {
+      if (firebaseTimerRef.current) {
+        window.clearInterval(firebaseTimerRef.current);
+        firebaseTimerRef.current = null;
+      }
+      return;
+    }
+    
+    setStatusMsg('Connecting to Firebase...');
+    
+    const fetchFirebaseData = async () => {
+      try {
+        const hydrationData = await firebaseService.getHydrationData();
+        const newIntake = hydrationData.totalWaterDrank;
+        
+        // Only update if data actually changed
+        if (newIntake !== intakeMl) {
+          setIntakeMl(newIntake);
+          setHistory(h => [...h, { 
+            timestamp: Date.now(), 
+            intakeMl: newIntake 
+          }]);
+          console.log(`🔥 Firebase update: ${newIntake}ml`);
+        }
+        
+        setLastSynced(Date.now());
+        setConnected(hydrationData.connected);
+        setStatusMsg(`Firebase: ${newIntake}ml (${Math.round((newIntake/dailyGoalMl)*100)}%)`);
+      } catch (error) {
+        console.error('Firebase fetch error:', error);
+        setStatusMsg('Firebase connection error');
+        setConnected(false);
+      }
+    };
+
+    // Initial fetch
+    fetchFirebaseData();
+    
+    // Set up polling every 5 seconds for more real-time updates
+    firebaseTimerRef.current = window.setInterval(fetchFirebaseData, 5000);
+    
+    return () => {
+      if (firebaseTimerRef.current) {
+        window.clearInterval(firebaseTimerRef.current);
+        firebaseTimerRef.current = null;
+      }
+    };
+  }, [firebaseMode]);
 
   const handleConnect = useCallback(async () => {
     if (!isBleSupported()) {
@@ -138,9 +186,11 @@ export const App: React.FC = () => {
         statusMsg={statusMsg}
         lastSynced={lastSynced}
         mockMode={mockMode}
+        firebaseMode={firebaseMode}
         onConnect={handleConnect}
         onDisconnect={handleDisconnect}
         onToggleMock={() => setMockMode(!mockMode)}
+        onToggleFirebase={() => setFirebaseMode(!firebaseMode)}
       />
     ),
     history: <History history={history} dailyBuckets={dailyBuckets} />,

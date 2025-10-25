@@ -45,3 +45,18 @@ class DeviceStatus(BaseModel):
     last_synced: datetime | None = None
 
 
+class FirebaseDeviceData(BaseModel):
+    connected: bool
+    currentWeight: Optional[int] = None
+    totalWaterDrank: Optional[int] = None
+    lastUpdated: Optional[str] = None
+    error: Optional[str] = None
+
+
+class HydrationData(BaseModel):
+    currentWeight: int
+    totalWaterDrank: int
+    connected: bool
+    lastUpdated: str
+
+

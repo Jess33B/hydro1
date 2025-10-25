@@ -12,9 +12,11 @@ interface DashboardProps {
   statusMsg: string;
   lastSynced: number | null;
   mockMode: boolean;
+  firebaseMode: boolean;
   onConnect: () => void;
   onDisconnect: () => void;
   onToggleMock: () => void;
+  onToggleFirebase: () => void;
 }
 
 function formatTime(ts: number) {
@@ -32,9 +34,11 @@ const Dashboard: React.FC<DashboardProps> = ({
   statusMsg,
   lastSynced,
   mockMode,
+  firebaseMode,
   onConnect,
   onDisconnect,
-  onToggleMock
+  onToggleMock,
+  onToggleFirebase
 }) => {
   const progressPercentage = dailyGoalMl ? Math.min(100, Math.round((intakeMl / dailyGoalMl) * 100)) : 0;
 
@@ -145,6 +149,20 @@ const Dashboard: React.FC<DashboardProps> = ({
               </div>
               <div className="action-description">
                 {mockMode ? 'Stop mock data' : 'Test with sample data'}
+              </div>
+            </div>
+          </button>
+
+          <button className="action-btn" onClick={onToggleFirebase}>
+            <div className="action-icon">
+              <span>🔥</span>
+            </div>
+            <div className="action-content">
+              <div className="action-label">
+                {firebaseMode ? 'Disable' : 'Enable'} Firebase Mode
+              </div>
+              <div className="action-description">
+                {firebaseMode ? 'Stop Firebase data' : 'Use real hardware data'}
               </div>
             </div>
           </button>
