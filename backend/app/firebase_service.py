@@ -25,7 +25,7 @@ class FirebaseService:
         """
         try:
             # Look under the sensorData node
-            url = f"{self.database_url}/sensorData/{device_id}.json"
+            url = f"{self.database_url}/{device_id}.json"
             response = requests.get(url, timeout=10)
             response.raise_for_status()
             
