@@ -19,18 +19,19 @@ class FirebaseService:
         """
         Get current device data from Firebase
         Args:
-            device_id: Device identifier (e.g., -0cPc2eDvRwhkvZ4U1Au)
+            device_id: Device identifier (e.g., -OcQBJZE__Q1uTdi4USo)
         Returns:
             Dictionary with device data or None if not found
         """
         try:
-            url = f"{self.database_url}/{device_id}.json"
+            # Look under the sensorData node
+            url = f"{self.database_url}/sensorData/{device_id}.json"
             response = requests.get(url, timeout=10)
             response.raise_for_status()
             
             data = response.json()
             if data is None:
-                logger.warning(f"No data found for device {device_id}")
+                logger.warning(f"No data found for device {device_id} under sensorData node")
                 return None
                 
             return data
